@@ -1,0 +1,96 @@
+version: "3.9"
+
+# Dipakai khusus oleh job "deploy" di CI/CD.
+# Berbeda dengan docker-compose.yml (dev, build lokal + hot-reload),
+# file ini menarik image jadi dari Docker Hub yang sudah di-push oleh
+# job build-and-push-backend / build-and-push-frontend.
+#
+# Variable BACKEND_IMAGE dan FRONTEND_IMAGE di-inject oleh workflow
+# (lihat .github/workflows/ci.yml, step "Deploy").
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: aegira-loan-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: aegira_loan
+      POSTGRES_USER: aegira
+      POSTGRES_PASSWORD: aegira_password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegira -d aegira_loan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:5.0.3-alpine
+    container_name: aegira-loan-redis
+    restart: unless-stopped
+
+    command: redis-server --appendonly yes
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+  backend:
+    image: ${BACKEND_IMAGE}
+
+    container_name: aegira-loan-service
+
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aegira_loan
+      SPRING_DATASOURCE_USERNAME: aegira
+      SPRING_DATASOURCE_PASSWORD: aegira_password
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      JWT_EXPIRATION: 3600000
+
+      LOAN_DATA_SOURCE_MODE: DATABASE
+      IDEMPOTENCY_ENABLED: "true"
+      IDEMPOTENCY_TTL_SECONDS: 86400
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+
+    container_name: creditappdemo
+
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    ports:
+      - "5173:5173"
+
+    environment:
+      NODE_ENV: production
+
+volumes:
+  postgres_data:
+  redis_data:
