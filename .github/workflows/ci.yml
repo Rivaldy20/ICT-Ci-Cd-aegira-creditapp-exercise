@@ -118,13 +118,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Login Docker Hub
-        uses: login-action@v3
+        uses: login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Setup Buildx
-        uses: setup-buildx-action@v3
+        uses: setup-buildx-action@v4
 
       - name: Build and Push Backend
         uses: build-push-action@v6
@@ -145,13 +145,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Login Docker Hub
-        uses: login-action@v3
+        uses: login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Setup Buildx
-        uses: setup-buildx-action@v3
+        uses: setup-buildx-action@v4
 
       - name: Build and Push Frontend
         uses: build-push-action@v6
@@ -175,7 +175,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Login Docker Hub
-        uses: login-action@v3
+        uses: login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
