@@ -145,8 +145,8 @@ jobs:
       contents: read
 
     env:
-      BACKEND_IMAGE: ${{ env.BACKEND_IMAGE_REPO }}:${{ github.sha }}
-      FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE_REPO }}:${{ github.sha }}
+      BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/aegira-loan-service:${{ github.sha }}
+      FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/creditappdemo:${{ github.sha }}
 
     steps:
       - name: Checkout source
