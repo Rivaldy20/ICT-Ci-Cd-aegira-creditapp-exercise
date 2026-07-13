@@ -20,10 +20,10 @@ jobs:
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Build image backend
-        run: docker build ./aegira-loan-service/Dockerfile -t ${{ secrets.DOCKERHUB_USERNAME }}/aegira-backend:latest ./aegira-loan-service
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/aegira-backend:latest ./aegira-loan-service
 
       - name: Build image frontend
-        run: docker build ./creditappdemo/Dockerfile -t ${{ secrets.DOCKERHUB_USERNAME }}/aegira-frontend:latest ./creditappdemo
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/aegira-frontend:latest ./creditappdemo
 
       - name: Push image backend
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/aegira-backend:latest
