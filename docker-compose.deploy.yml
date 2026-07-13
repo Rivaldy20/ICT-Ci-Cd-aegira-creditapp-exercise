@@ -1,13 +1,5 @@
 version: "3.9"
 
-# Dipakai khusus oleh job "deploy" di CI/CD.
-# Berbeda dengan docker-compose.yml (dev, build lokal + hot-reload),
-# file ini menarik image jadi dari Docker Hub yang sudah di-push oleh
-# job build-and-push-backend / build-and-push-frontend.
-#
-# Variable BACKEND_IMAGE dan FRONTEND_IMAGE di-inject oleh workflow
-# (lihat .github/workflows/ci.yml, step "Deploy").
-
 services:
   postgres:
     image: postgres:14-alpine
