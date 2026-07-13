@@ -10,55 +10,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Job untuk build dan push image secara paralel
-  build-and-push:
+  build-and-deploy:
     runs-on: docker-local
-    strategy:
-      matrix:
-        service: [backend, frontend]
-        include:
-          - service: backend
-            context: ./aegira-loan-service
-            image_name: docker-image-backend
-          - service: frontend
-            context: ./creditappdemo
-            image_name: docker-image-frontend
+
     steps:
       - name: ⬇️ Checkout kode
         uses: actions/checkout@v4
 
+      # Login ke Docker Hub (gunakan secrets DOCKER_USERNAME & DOCKER_TOKEN)
       - name: 🔐 Login ke Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: 🏗️ Build image ${{ matrix.service }}
+      # Build image backend dari direktori ./aegira-loan-service
+      - name: 🏗️ Build image backend
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image_name }}:latest ${{ matrix.context }}
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/docker-image-backend:latest ./aegira-loan-service
 
-      - name: 📤 Push image ${{ matrix.service }}
+      # Build image frontend dari direktori ./creditappdemo
+      - name: 🏗️ Build image frontend
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image_name }}:latest
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/docker-image-frontend:latest ./creditappdemo
 
-  # Job deploy yang berjalan setelah semua build dan push selesai
-  deploy:
-    runs-on: docker-local
-    needs: build-and-push
-    steps:
-      - name: ⬇️ Checkout kode (untuk docker-compose.yml)
-        uses: actions/checkout@v4
+      # Push image ke Docker Hub
+      - name: 📤 Push image backend
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/docker-image-backend:latest
 
-      - name: 🔐 Login ke Docker Hub (agar pull berhasil)
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: 📤 Push image frontend
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/docker-image-frontend:latest
 
+      # Tarik image terbaru dan jalankan container
       - name: 🔄 Pull image terbaru & deploy
         run: |
           docker compose pull
           docker compose up -d --remove-orphans
+        env:
+          # Variabel lingkungan yang dibutuhkan oleh container (diambil dari secrets)
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          LOAN_DATA_SOURCE_MODE: ${{ secrets.LOAN_DATA_SOURCE_MODE }}
+          IDEMPOTENCY_ENABLED: ${{ secrets.IDEMPOTENCY_ENABLED }}
 
+      # Bersihkan image lama yang tidak terpakai
       - name: 🧹 Hapus image lama
         run: docker image prune -f
