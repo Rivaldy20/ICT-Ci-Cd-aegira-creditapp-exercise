@@ -130,6 +130,10 @@ jobs:
       - name: Bersihkan container lama sebelum deploy
         run: docker compose -f docker-compose.deploy.yml down --remove-orphans
 
+      - name: Paksa hapus container bentrok nama (kalau masih ada)
+        run: |
+          docker rm -f aegira-loan-postgres aegira-loan-redis aegira-loan-service creditappdemo 2>/dev/null || true
+
       - name: Deploy menggunakan image dari registry
         run: docker compose -f docker-compose.deploy.yml up -d
 
