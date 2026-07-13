@@ -118,6 +118,11 @@ jobs:
   deploy:
     needs: pull-registry
     runs-on: [self-hosted, docker-local]
+
+    env:
+      BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/aegira-backend:latest
+      FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/aegira-frontend:latest
+
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -126,8 +131,6 @@ jobs:
         run: docker compose -f docker-compose.deploy.yml down --remove-orphans
 
       - name: Deploy menggunakan image dari registry
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: docker compose -f docker-compose.deploy.yml up -d
 
       - name: Show running containers
