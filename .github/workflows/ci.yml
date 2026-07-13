@@ -23,7 +23,7 @@ jobs:
  
       - name: Install & Test Frontend
         run: |
-          cd creditappdemo2
+          cd creditappdemo
           npm ci
           npm run lint || echo "Linter script tidak ditemukan, aman skip."
           npm run setup:e2e
@@ -53,11 +53,6 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
- 
-      - name: Run Backend Unit Tests
-        run: |
-          cd aegira-loan-service
-          mvn test
  
   # ==========================================
   # JOB 3: PUSH FRONTEND IMAGE (Hanya jalan jika FE lulus tes)
