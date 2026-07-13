@@ -1,199 +1,145 @@
-name: Build, Test, Push, and Deploy
-
+name: Pipeline CI/CD Aegira & CreditApp (Fully Parallel Version)
+ 
 on:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
-
-concurrency:
-  group: production-deploy
-  cancel-in-progress: true
-
-env:
-  BACKEND_IMAGE_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/aegira-loan-service
-  FRONTEND_IMAGE_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/creditappdemo
-
+    branches: [ "main" ]
+ 
 jobs:
-
-  build-backend:
-    name: Build Backend
+  # ==========================================
+  # JOB 1: BUILD & TEST FRONTEND
+  # ==========================================
+  build-test-frontend:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
-          cache-dependency-path: aegira-loan-service/pom.xml
-
-      - name: Build Backend
-        working-directory: aegira-loan-service
-        run: mvn clean package -DskipTests
-
-  test-backend:
-    name: Test Backend
-    needs: build-backend
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
-          cache-dependency-path: aegira-loan-service/pom.xml
-
-      - name: Run Backend Tests
-        working-directory: aegira-loan-service
-        run: mvn test
-
-  build-frontend:
-    name: Build Frontend
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Setup Node 20
+          fetch-depth: 1
+     
+      # Setup Node & Lint/Test Frontend
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: creditappdemo/package-lock.json
-
-      - name: Install Dependencies
-        working-directory: creditappdemo
-        run: npm ci
-
-      - name: Build Frontend
-        working-directory: creditappdemo
-        run: npm run build
-
-  test-frontend:
-    name: Test Frontend
-    needs: build-frontend
+          node-version: 18
+ 
+      - name: Install & Test Frontend
+        run: |
+          cd creditappdemo2
+          npm ci
+          npm run lint || echo "Linter script tidak ditemukan, aman skip."
+          npm run setup:e2e
+          npm run test:e2e
+ 
+  # ==========================================
+  # JOB 2: BUILD & TEST BACKEND
+  # ==========================================
+  build-test-backend:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: creditappdemo/package-lock.json
-
-      - name: Install Dependencies
-        working-directory: creditappdemo
-        run: npm ci
-
-      - name: Install Playwright Browsers
-        working-directory: creditappdemo
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Frontend Tests
-        working-directory: creditappdemo
-        run: npm run test:e2e
-
-  push-backend:
-    name: Push Backend Image
-    needs: test-backend
+          fetch-depth: 1
+ 
+      # Setup Java & Test Backend
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+ 
+      # Cache maven packages agar cepat
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+ 
+      - name: Run Backend Unit Tests
+        run: |
+          cd aegira-loan-service
+          mvn test
+ 
+  # ==========================================
+  # JOB 3: PUSH FRONTEND IMAGE (Hanya jalan jika FE lulus tes)
+  # ==========================================
+  push-frontend:
+    needs: build-test-frontend
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Login Docker Hub
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+ 
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Setup Docker Buildx
+ 
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+ 
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./creditappdemo2
+          file: ./creditappdemo2/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/creditappdemo2:latest
+ 
+  # ==========================================
+  # JOB 4: PUSH BACKEND IMAGE (Hanya jalan jika BE lulus tes)
+  # ==========================================
+  push-backend:
+    needs: build-test-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+ 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+ 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+ 
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v6
         with:
           context: ./aegira-loan-service
+          file: ./aegira-loan-service/Dockerfile
           push: true
-          tags: |
-            ${{ env.BACKEND_IMAGE_REPO }}:${{ github.sha }}
-            ${{ env.BACKEND_IMAGE_REPO }}:latest
-
-  push-frontend:
-    name: Push Frontend Image
-    needs: test-frontend
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Login Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and Push Frontend Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./creditappdemo
-          push: true
-          tags: |
-            ${{ env.FRONTEND_IMAGE_REPO }}:${{ github.sha }}
-            ${{ env.FRONTEND_IMAGE_REPO }}:latest
-
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/aegira-loan-service:latest
+ 
+  # ==========================================
+  # JOB 5: PULL & DEPLOY (Menunggu Kedua Jalur Push Sukses)
+  # ==========================================
   deploy:
-    name: Deploy with Self-Hosted Runner
-    needs:
-      - push-backend
-      - push-frontend
-
-    runs-on: [self-hosted, docker-cicd]
-
+    needs: [push-frontend, push-backend]
+    runs-on: [self-hosted, docker-local]
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Login Docker Hub
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Pull Latest Images
+          fetch-depth: 1
+ 
+      # Pull masing-masing image terbaru dari Docker Hub
+      - name: Pull Latest Images from Docker Hub
         run: |
-          docker compose -f docker-compose.prod.yml pull
-
-      - name: Deploy Containers
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/creditappdemo2:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/aegira-loan-service:latest
+ 
+      # Bersihkan konflik kontainer lama
+      - name: Bersihkan Kontainer Aplikasi Lama yang Menggantung
         run: |
-          docker compose -f docker-compose.prod.yml up -d
-
-      - name: Show Running Containers
+          docker stop aegira-redis-container aegira-postgres-container || true
+          docker rm aegira-redis-container aegira-postgres-container || true
+ 
+      # Jalankan ulang kontainer aplikasi utama Anda secara bersih
+      - name: Deploy / Restart Containers di Laptop Local
         run: |
-          docker compose -f docker-compose.prod.yml ps
-
-      - name: Show Logs If Failed
-        if: failure()
-        run: |
-          docker compose -f docker-compose.prod.yml logs
+          docker compose up -d --force-recreate creditapp-ui aegira-loan-backend aegira-db aegira-cache
+ 
